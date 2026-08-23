@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Vegam Digital</string>
+    <string name="no_internet">Internet ledu. Connection check chesi malli try cheyyandi.</string>
+    <string name="retry">Malli try cheyyandi</string>
+</resources>

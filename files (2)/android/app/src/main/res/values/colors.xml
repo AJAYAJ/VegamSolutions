@@ -1,0 +1,9 @@
+<resources>
+    <color name="ink">#FF0B1230</color>
+    <color name="paper">#FFEDF0F8</color>
+    <color name="brand">#FF2B4BFF</color>
+    <color name="gold">#FFFFC24B</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="muted">#FF6A7595</color>
+    <color name="ic_launcher_background">#FF0B1230</color>
+</resources>
