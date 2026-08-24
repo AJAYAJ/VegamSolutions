@@ -37,7 +37,7 @@ class AppViewModel @Inject constructor(
         AppUiState(signed, dashboard, loading, msg)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppUiState())
 
-    fun login(code: String, password: String) = launchAction("Welcome back, Anusha") { loginUseCase(code, password).getOrThrow() }
+    fun login(code: String, password: String) = launchAction("Welcome back") { loginUseCase(code, password).getOrThrow() }
     fun logout() = viewModelScope.launch { repository.logout() }
     fun askDoubt(question: String, details: String, done: () -> Unit) = launchAction("Question posted", done) { askDoubtUseCase(question, details) }
     fun answer(doubtId: Long, answer: String) = launchAction("Answer posted") { repository.answerDoubt(doubtId, answer) }

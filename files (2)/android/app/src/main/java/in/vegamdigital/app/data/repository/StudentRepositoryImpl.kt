@@ -4,29 +4,35 @@ import `in`.vegamdigital.app.data.local.DoubtEntity
 import `in`.vegamdigital.app.data.local.JobEntity
 import `in`.vegamdigital.app.data.local.SessionEntity
 import `in`.vegamdigital.app.data.local.VegamDao
-import `in`.vegamdigital.app.data.remote.FirebaseAuthGateway
-import `in`.vegamdigital.app.data.remote.FirestoreGateway
+import `in`.vegamdigital.app.data.remote.SupabaseGateway
 import `in`.vegamdigital.app.domain.model.*
 import `in`.vegamdigital.app.domain.repository.StudentRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class StudentRepositoryImpl @Inject constructor(
     private val dao: VegamDao,
-    private val auth: FirebaseAuthGateway,
-    private val firestore: FirestoreGateway
+    private val supabase: SupabaseGateway
 ) : StudentRepository {
-    private val localAnswers = MutableStateFlow<Map<Long, List<Answer>>>(emptyMap())
-    override val signedIn = dao.observeSession().map { it != null }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val remoteDoubts = MutableStateFlow<List<Doubt>>(emptyList())
+    override val signedIn = supabase.signedIn
 
-    private val student = Student(
+    private val student = MutableStateFlow(Student(
         code = "SYF-AMP-DM26-B03-014", name = "Anusha Reddy", course = "Digital Marketing",
         branch = "AMP", batch = "B03", rollNumber = "014", location = "Ameerpet"
-    )
+    ))
     private val courses = listOf(
         Course("digital-marketing", "Digital Marketing", "డిజిటల్ మార్కెటింగ్", 15, 15, lessons = listOf(
             Lesson("1", "Digital marketing foundations", "18 min", true),
@@ -61,46 +67,66 @@ class StudentRepositoryImpl @Inject constructor(
         Update("JOBS", "Two new jobs are live", "SEO and Meta Ads roles in Hyderabad.", "11 days ago")
     )
 
-    override val dashboard = combine(dao.observeDoubts(), dao.observeJobs(), localAnswers) { savedDoubts, savedJobs, answers ->
+    override val dashboard = combine(dao.observeDoubts(), dao.observeJobs(), remoteDoubts, student) { savedDoubts, savedJobs, serverDoubts, activeStudent ->
         Dashboard(
-            student, courses,
+            activeStudent, courses,
             savedJobs.map { it.toDomain() } + seedJobs,
-            savedDoubts.map { it.toDomain(answers[it.id].orEmpty()) } + seedDoubts,
+            serverDoubts + savedDoubts.map { it.toDomain() } + seedDoubts,
             seniors, updates
         )
     }
 
-    override suspend fun login(code: String, password: String): Result<Unit> = runCatching {
-        require(auth.signIn(code, password)) { "Student code or password is incorrect" }
-        dao.saveSession(SessionEntity(studentCode = code))
+    init {
+        scope.launch {
+            supabase.restore()?.let { restored ->
+                student.value = restored
+                refreshDoubts()
+            }
+        }
+        scope.launch {
+            supabase.signedIn.collectLatest { isSignedIn ->
+                if (!isSignedIn) return@collectLatest
+                while (currentCoroutineContext().isActive) {
+                    runCatching { refreshDoubts() }
+                    delay(CHAT_REFRESH_MILLIS)
+                }
+            }
+        }
     }
 
-    override suspend fun logout() { auth.signOut(); dao.clearSession() }
+    override suspend fun login(code: String, password: String): Result<Unit> = runCatching {
+        student.value = supabase.signIn(code, password)
+        dao.saveSession(SessionEntity(studentCode = code))
+        refreshDoubts()
+    }
+
+    override suspend fun logout() { supabase.signOut(); dao.clearSession(); remoteDoubts.value = emptyList() }
 
     override suspend fun askDoubt(question: String, description: String) {
         require(question.isNotBlank()) { "Please enter your question" }
-        dao.insertDoubt(DoubtEntity(question = question, description = description, author = student.name))
-        firestore.add("doubts", mapOf("question" to question, "description" to description, "studentCode" to student.code))
+        supabase.addDoubt(question, description, student.value.name)
+        refreshDoubts()
     }
 
     override suspend fun answerDoubt(doubtId: Long, answer: String) {
         if (answer.isBlank()) return
-        localAnswers.value += (doubtId to (localAnswers.value[doubtId].orEmpty() + Answer(student.name, answer, "Just now")))
-        firestore.add("answers", mapOf("doubtId" to doubtId, "answer" to answer))
+        supabase.addAnswer(doubtId, answer, student.value.name)
+        refreshDoubts()
     }
 
     override suspend fun postJob(job: Job) {
         require(job.title.isNotBlank() && job.company.isNotBlank() && job.phone.length >= 10) { "Enter job title, company and a valid phone number" }
-        dao.insertJob(JobEntity(title = job.title, company = job.company, location = job.location, salary = job.salary,
-            experience = job.experience, description = job.description, contactName = student.name, phone = job.phone))
-        firestore.add("jobs", mapOf("title" to job.title, "company" to job.company, "status" to "pending"))
+        supabase.addJob(job, student.value.name)
     }
 
     override suspend fun sendReferral(name: String, phone: String, note: String) {
         require(name.isNotBlank() && phone.length >= 10) { "Enter a valid name and phone number" }
-        firestore.add("referrals", mapOf("name" to name, "phone" to phone, "note" to note, "referrer" to student.code))
+        supabase.addReferral(name, phone, note)
     }
 
-    private fun DoubtEntity.toDomain(answers: List<Answer>) = Doubt(id, question, description, author, "Just now", answers)
+    private suspend fun refreshDoubts() { remoteDoubts.value = supabase.getDoubts() }
+    private fun DoubtEntity.toDomain() = Doubt(id, question, description, author, "Just now")
     private fun JobEntity.toDomain() = Job(id, title, company, location, salary, experience, description, contactName, phone, "Pending approval")
+
+    private companion object { const val CHAT_REFRESH_MILLIS = 15_000L }
 }

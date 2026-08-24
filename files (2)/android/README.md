@@ -1,23 +1,24 @@
 # Vegam Digital Student App
 
-Native Android student portal built from the supplied UI references.
+Native Android student portal built with Kotlin, Jetpack Compose, Hilt, Room, Retrofit, and Supabase.
 
-## Stack
+## Supabase setup
 
-- Kotlin and Jetpack Compose
-- Clean Architecture packages (`domain`, `data`, `presentation`, `di`)
-- Hilt dependency injection
-- Navigation Compose
-- Room for the signed-in session and locally created jobs/doubts
-- Retrofit API contract for the future backend
-- Dummy Firebase-shaped Auth, Firestore, Storage and FCM gateways
+1. Create a Supabase project and run `supabase/schema.sql` in its SQL editor.
+2. In Supabase Authentication, create a student user using the email convention
+   `<lowercase-student-code>@students.vegamdigital.in`. For example:
+   `syf-amp-dm26-b03-014@students.vegamdigital.in`.
+3. Add a matching row to `public.profiles`, using that Auth user's UUID as `id`.
+4. Add these values to the untracked `local.properties` file:
 
-## Demo login
+```properties
+SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_ANON_KEY=YOUR_PUBLISHABLE_OR_ANON_KEY
+```
 
-- Student code: `SYF-AMP-DM26-B03-014`
-- Password: `student123`
+Only the publishable/anon key belongs in the app. Never add a `service_role` key.
 
-The dummy authentication accepts a non-empty student code and passwords of at least four characters.
+Login, session restoration/refresh, doubts, answers, job submissions, and referrals now use Supabase. Existing Room tables remain as a local legacy cache.
 
 ## Build
 
@@ -26,7 +27,3 @@ The dummy authentication accepts a non-empty student code and passwords of at le
 ```
 
 The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
-
-## Connecting Firebase later
-
-Implement the four interfaces in `data/remote/RemoteServices.kt` with the Firebase SDK, add `google-services.json` and the Google Services Gradle plugin, then change the Hilt bindings in `di/AppModule.kt`. Presentation and domain code do not need to change.

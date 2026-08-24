@@ -23,8 +23,8 @@ import `in`.vegamdigital.app.presentation.theme.*
 
 @Composable
 fun LoginScreen(busy: Boolean, onLogin: (String, String) -> Unit) {
-    var code by remember { mutableStateOf("SYF-AMP-DM26-B03-014") }
-    var password by remember { mutableStateOf("student123") }
+    var code by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     Box(
         Modifier
             .fillMaxSize()
@@ -108,8 +108,6 @@ fun LoginScreen(busy: Boolean, onLogin: (String, String) -> Unit) {
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp
             )
-            Spacer(Modifier.height(18.dp))
-            Text("Demo: SYF-AMP-DM26-B03-014  /  student123", color = Muted, fontSize = 12.sp)
         }
     }
 }

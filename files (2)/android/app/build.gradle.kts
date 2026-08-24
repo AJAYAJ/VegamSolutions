@@ -1,9 +1,19 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.kapt")
     id("com.google.dagger.hilt.android")
 }
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use(::load)
+}
+
+fun localProperty(name: String, fallback: String): String =
+    localProperties.getProperty(name) ?: System.getenv(name) ?: fallback
 
 android {
     namespace = "in.vegamdigital.app"
@@ -15,6 +25,8 @@ android {
         targetSdk = 34
         versionCode = 1             // update ki prathi sari penchandi
         versionName = "1.0"
+        buildConfigField("String", "SUPABASE_URL", "\"${localProperty("SUPABASE_URL", "https://example.supabase.co")}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${localProperty("SUPABASE_ANON_KEY", "")}\"")
     }
 
     buildTypes {
@@ -29,7 +41,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
