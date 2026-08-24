@@ -1,5 +1,5 @@
 <resources>
-    <style name="Theme.Vegam" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.Vegam" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@color/ink</item>
         <item name="android:navigationBarColor">@color/white</item>
         <item name="android:windowLightStatusBar">false</item>
