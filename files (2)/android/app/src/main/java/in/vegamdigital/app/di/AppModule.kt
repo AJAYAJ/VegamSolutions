@@ -1,6 +1,7 @@
 package `in`.vegamdigital.app.di
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Room
 import dagger.Binds
 import dagger.Module
@@ -40,7 +41,14 @@ object AppModule {
                 .header("Content-Type", "application/json")
                 .header("Prefer", "return=minimal")
                 .build()
-            chain.proceed(request)
+            val response = chain.proceed(request)
+            if (`in`.vegamdigital.app.BuildConfig.DEBUG) {
+                Log.d("SupabaseHttp", "${request.method()} ${request.url()} -> ${response.code()}")
+                if (!response.isSuccessful) {
+                    Log.d("SupabaseHttp", "Error body: ${response.peekBody(4_096).string()}")
+                }
+            }
+            response
         }.build()
     @Provides @Singleton fun retrofit(client: OkHttpClient): Retrofit = Retrofit.Builder()
         .baseUrl(`in`.vegamdigital.app.BuildConfig.SUPABASE_URL.trimEnd('/') + "/")

@@ -19,7 +19,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
-
+//https://uibmsboimiqimfpdlglf.supabase.co/rest/v1/
+//sb_publishable_JA3nUi60OMmeKSL060KK0w_vRQJmkR8
+//syf-amp-dm26-b03-014@students.vegamdigital.in
+//student123
 @Singleton
 class StudentRepositoryImpl @Inject constructor(
     private val dao: VegamDao,

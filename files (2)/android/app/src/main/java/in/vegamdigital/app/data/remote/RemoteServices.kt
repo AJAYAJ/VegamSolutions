@@ -18,6 +18,7 @@ import retrofit2.http.POST
 import retrofit2.http.Query
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.core.content.edit
 
 data class PasswordRequest(val email: String, val password: String)
 data class RefreshRequest(@SerializedName("refresh_token") val refreshToken: String)
@@ -133,7 +134,7 @@ class SupabaseSessionStore @Inject constructor(context: Context) {
     }
 
     fun clear() {
-        preferences.edit().clear().apply()
+        preferences.edit { clear() }
         _signedIn.value = false
     }
 
@@ -156,7 +157,15 @@ class SupabaseGateway @Inject constructor(
         checkConfigured()
         val code = studentCode.trim().uppercase()
         require(code.isNotBlank() && password.isNotBlank()) { "Enter your student code and password" }
-        val auth = api.signIn(body = PasswordRequest(studentEmail(code), password))
+        val auth = try {
+            api.signIn(body = PasswordRequest(studentEmail(code), password))
+        } catch (error: HttpException) {
+            when (error.code()) {
+                400, 401 -> throw IllegalArgumentException("Student code or password is incorrect")
+                404 -> throw IllegalStateException("Supabase Auth endpoint was not found. Check SUPABASE_URL.")
+                else -> throw error
+            }
+        }
         session.save(auth)
         return runCatching { loadProfile() }.getOrElse {
             session.clear()
