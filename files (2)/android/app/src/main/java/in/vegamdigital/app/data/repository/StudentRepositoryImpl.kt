@@ -7,17 +7,18 @@ import `in`.vegamdigital.app.domain.repository.AdminLog
 import `in`.vegamdigital.app.domain.repository.StudentRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job as CoroutineJob
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.time.Duration.Companion.milliseconds
+
 //https://uibmsboimiqimfpdlglf.supabase.co/rest/v1/
 //sb_publishable_JA3nUi60OMmeKSL060KK0w_vRQJmkR8
 //syf-amp-dm26-b03-014@students.vegamdigital.in
@@ -28,7 +29,9 @@ class StudentRepositoryImpl @Inject constructor(
     private val supabase: SupabaseGateway
 ) : StudentRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var doubtPollingJob: CoroutineJob? = null
     private val remoteDoubts = MutableStateFlow<List<Doubt>>(emptyList())
+    private val remoteAdminLogs = MutableStateFlow<List<AdminLog>?>(null)
     override val signedIn = supabase.signedIn
 
     private val _student = MutableStateFlow<Student?>(null)
@@ -80,38 +83,55 @@ class StudentRepositoryImpl @Inject constructor(
         scope.launch {
             supabase.restore()?.let { restored ->
                 _student.value = restored
-                refreshDoubts()
+                fetchDoubts()
             }
         }
-        scope.launch {
-            supabase.signedIn.collectLatest { isSignedIn ->
-                if (!isSignedIn) return@collectLatest
-                while (currentCoroutineContext().isActive) {
-                    runCatching { refreshDoubts() }
-                    delay(CHAT_REFRESH_MILLIS)
-                }
-            }
-        }
+
     }
 
     override suspend fun login(code: String, password: String): Result<Unit> = runCatching {
         _student.value = supabase.signIn(code, password)
         dao.saveSession(SessionEntity(studentCode = code))
-        refreshDoubts()
+        fetchDoubts()
     }
 
-    override suspend fun logout() { supabase.signOut(); dao.clearSession(); remoteDoubts.value = emptyList(); _student.value = null }
+    override suspend fun logout() {
+        stopPullingDoubts()
+        supabase.signOut()
+        dao.clearSession()
+        remoteDoubts.value = emptyList()
+        _student.value = null
+    }
 
     override suspend fun askDoubt(question: String, description: String) {
         require(question.isNotBlank()) { "Please enter your question" }
         supabase.addDoubt(question, description, _student.value?.name ?: "Anonymous")
-        refreshDoubts()
+        fetchDoubts()
     }
 
     override suspend fun answerDoubt(doubtId: Long, answer: String) {
         if (answer.isBlank()) return
         supabase.addAnswer(doubtId, answer, _student.value?.name ?: "Anonymous")
-        refreshDoubts()
+        fetchDoubts()
+    }
+
+    override suspend fun pullDoubts() {
+        if (doubtPollingJob?.isActive == true) return
+        doubtPollingJob = scope.launch {
+            while (currentCoroutineContext().isActive) {
+                if (supabase.signedIn.value) runCatching { fetchDoubts() }
+                delay(CHAT_REFRESH_MILLIS.milliseconds)
+            }
+        }
+    }
+
+    override fun stopPullingDoubts() {
+        doubtPollingJob?.cancel()
+        doubtPollingJob = null
+    }
+
+    override suspend fun refreshDoubts() {
+        fetchDoubts()
     }
 
     override suspend fun postJob(job: Job) {
@@ -124,8 +144,16 @@ class StudentRepositoryImpl @Inject constructor(
         supabase.addReferral(name, phone, note)
     }
 
-    override val adminLogs = dao.observeAdminLogs().map { logs ->
-        logs.map { AdminLog(it.studentCode, it.fullName, it.password, it.batch, java.text.SimpleDateFormat("dd MMM, hh:mm a").format(java.util.Date(it.createdAt))) }
+    override val adminLogs = combine(dao.observeAdminLogs(), remoteAdminLogs) { localLogs, serverLogs ->
+        serverLogs ?: localLogs.map {
+            AdminLog(it.studentCode, it.fullName, it.password, it.batch, formatDate(it.createdAt))
+        }
+    }
+
+    override suspend fun refreshAdminLogs() {
+        remoteAdminLogs.value = supabase.getAdminLogs().map {
+            AdminLog(it.studentCode, it.fullName, it.password, it.batch, formatServerDate(it.createdAt))
+        }
     }
 
     override suspend fun createStudent(student: Student, password: String): Result<Unit> = runCatching {
@@ -148,7 +176,18 @@ class StudentRepositoryImpl @Inject constructor(
         runCatching { supabase.addAdminLog(student.code, student.name, password, student.batch) }
     }
 
-    private suspend fun refreshDoubts() { remoteDoubts.value = supabase.getDoubts() }
+    private suspend fun fetchDoubts() { remoteDoubts.value = supabase.getDoubts() }
+    private fun formatDate(timestamp: Long): String =
+        java.text.SimpleDateFormat("dd MMM, hh:mm a", java.util.Locale.getDefault())
+            .format(java.util.Date(timestamp))
+
+    private fun formatServerDate(timestamp: String?): String {
+        if (timestamp.isNullOrBlank()) return ""
+        val parsed = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }.parse(timestamp)
+        return parsed?.let { formatDate(it.time) } ?: timestamp
+    }
     private fun DoubtEntity.toDomain() = Doubt(id, question, description, author, "Just now")
     private fun JobEntity.toDomain() = Job(id, title, company, location, salary, experience, description, contactName, phone, "Pending approval")
 

@@ -14,6 +14,9 @@ interface StudentRepository {
     suspend fun logout()
     suspend fun askDoubt(question: String, description: String)
     suspend fun answerDoubt(doubtId: Long, answer: String)
+    suspend fun pullDoubts()
+    fun stopPullingDoubts()
+    suspend fun refreshDoubts()
     suspend fun postJob(job: Job)
     suspend fun sendReferral(name: String, phone: String, note: String)
     suspend fun createStudent(student: Student, password: String): Result<Unit>

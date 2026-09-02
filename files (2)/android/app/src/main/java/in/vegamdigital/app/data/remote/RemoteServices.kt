@@ -107,7 +107,8 @@ data class AdminLogDto(
     @SerializedName("full_name") val fullName: String,
     val password: String,
     val batch: String,
-    @SerializedName("admin_id") val adminId: String? = null
+    @SerializedName("admin_id") val adminId: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null
 )
 
 interface SupabaseApi {
@@ -134,6 +135,11 @@ interface SupabaseApi {
     @POST("rest/v1/jobs") suspend fun addJob(@Body body: NewJob)
     @POST("rest/v1/referrals") suspend fun addReferral(@Body body: NewReferral)
     @POST("rest/v1/admin_logs") suspend fun addAdminLog(@Body body: AdminLogDto)
+    @GET("rest/v1/admin_logs")
+    suspend fun adminLogs(
+        @Query("select") select: String = "student_code,full_name,password,batch,admin_id,created_at",
+        @Query("order") order: String = "created_at.desc"
+    ): List<AdminLogDto>
 
     @POST("functions/v1/create-student")
     suspend fun createStudent(@Body body: CreateStudentRequest)
@@ -245,6 +251,8 @@ class SupabaseGateway @Inject constructor(
     suspend fun addAdminLog(studentCode: String, fullName: String, password: String, batch: String) = authorized {
         api.addAdminLog(AdminLogDto(studentCode, fullName, password, batch, session.userId))
     }
+
+    suspend fun getAdminLogs(): List<AdminLogDto> = authorized { api.adminLogs() }
 
     private suspend fun loadProfile(): Student = authorized { loadProfileDirect() }
 

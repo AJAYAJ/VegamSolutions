@@ -59,7 +59,7 @@ private fun MainShell(data: Dashboard, busy: Boolean, viewModel: AppViewModel, i
 
     val items = remember(isAdmin) {
         if (isAdmin) {
-            bottomItems + BottomItem("admin", "Admin", Icons.Rounded.AdminPanelSettings, Icons.Outlined.AdminPanelSettings)
+            listOf( BottomItem("admin", "Admin", Icons.Rounded.AdminPanelSettings, Icons.Outlined.AdminPanelSettings))
         } else {
             bottomItems
         }
@@ -154,7 +154,12 @@ private fun MainShell(data: Dashboard, busy: Boolean, viewModel: AppViewModel, i
                     doubt,
                     busy,
                     nav::popBackStack,
-                    { go("notifications") }) { viewModel.answer(doubt.id, it) }
+                    { go("notifications") },
+                    { viewModel.answer(doubt.id, it) },
+                    viewModel::refreshDoubts,
+                    viewModel::startDoubtPolling,
+                    viewModel::stopDoubtPolling
+                )
             }
             }
         }

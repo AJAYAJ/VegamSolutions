@@ -36,7 +36,8 @@ fun AdminDashboard(viewModel: AppViewModel, onNotifications: () -> Unit) {
         onNotifications = onNotifications,
         onCreateStudent = { student, password, onDone ->
             viewModel.createStudent(student, password, onDone)
-        }
+        },
+        onRefreshLogs = viewModel::refreshAdminLogs
     )
 }
 
@@ -44,7 +45,8 @@ fun AdminDashboard(viewModel: AppViewModel, onNotifications: () -> Unit) {
 fun AdminDashboardContent(
     state: AppUiState,
     onNotifications: () -> Unit,
-    onCreateStudent: (Student, String, () -> Unit) -> Unit
+    onCreateStudent: (Student, String, () -> Unit) -> Unit,
+    onRefreshLogs: () -> Unit
 ) {
     var showCreateForm by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -109,10 +111,12 @@ fun AdminDashboardContent(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             SectionTitle("Creation Logs", "Count: ${state.adminLogs.size}")
-                            if (state.adminLogs.isNotEmpty()) {
-                                 IconButton(onClick = { /* Could open a full search bar */ }) {
-                                     Icon(Icons.Outlined.Refresh, null, tint = Muted)
-                                 }
+                            IconButton(onClick = onRefreshLogs, enabled = !state.busy) {
+                                Icon(
+                                    Icons.Outlined.Refresh,
+                                    contentDescription = "Refresh creation logs",
+                                    tint = if (state.busy) Muted.copy(alpha = 0.5f) else Muted
+                                )
                             }
                         }
                     }
@@ -310,7 +314,8 @@ fun AdminDashboardPreview() {
                 )
             ),
             onNotifications = {},
-            onCreateStudent = { _, _, _ -> }
+            onCreateStudent = { _, _, _ -> },
+            onRefreshLogs = {}
         )
     }
 }

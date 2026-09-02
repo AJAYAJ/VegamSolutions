@@ -58,11 +58,18 @@ class AppViewModel @Inject constructor(
     fun logout() = viewModelScope.launch { repository.logout() }
     fun askDoubt(question: String, details: String, done: () -> Unit) = launchAction("Question posted", done) { askDoubtUseCase(question, details) }
     fun answer(doubtId: Long, answer: String) = launchAction("Answer posted") { repository.answerDoubt(doubtId, answer) }
+    fun startDoubtPolling() = viewModelScope.launch { repository.pullDoubts() }
+    fun stopDoubtPolling() = repository.stopPullingDoubts()
+    fun refreshDoubts() = launchAction("Doubt refreshed") { repository.refreshDoubts() }
     fun postJob(job: Job, done: () -> Unit) = launchAction("Job submitted for approval", done) { postJobUseCase(job) }
     fun refer(name: String, phone: String, note: String) = launchAction("Referral sent") { repository.sendReferral(name, phone, note) }
     
     fun createStudent(student: Student, password: String, done: () -> Unit) = launchAction("Student account created successfully", done) {
         repository.createStudent(student, password).getOrThrow()
+    }
+
+    fun refreshAdminLogs() = launchAction("Creation logs refreshed") {
+        repository.refreshAdminLogs()
     }
 
     fun clearMessage() { message.value = null }
