@@ -1,11 +1,9 @@
 package `in`.vegamdigital.app.data.repository
 
-import `in`.vegamdigital.app.data.local.DoubtEntity
-import `in`.vegamdigital.app.data.local.JobEntity
-import `in`.vegamdigital.app.data.local.SessionEntity
-import `in`.vegamdigital.app.data.local.VegamDao
+import `in`.vegamdigital.app.data.local.*
 import `in`.vegamdigital.app.data.remote.SupabaseGateway
 import `in`.vegamdigital.app.domain.model.*
+import `in`.vegamdigital.app.domain.repository.AdminLog
 import `in`.vegamdigital.app.domain.repository.StudentRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +13,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -32,10 +31,8 @@ class StudentRepositoryImpl @Inject constructor(
     private val remoteDoubts = MutableStateFlow<List<Doubt>>(emptyList())
     override val signedIn = supabase.signedIn
 
-    private val student = MutableStateFlow(Student(
-        code = "SYF-AMP-DM26-B03-014", name = "Anusha Reddy", course = "Digital Marketing",
-        branch = "AMP", batch = "B03", rollNumber = "014", location = "Ameerpet"
-    ))
+    private val _student = MutableStateFlow<Student?>(null)
+    override val currentStudent = _student
     private val courses = listOf(
         Course("digital-marketing", "Digital Marketing", "డిజిటల్ మార్కెటింగ్", 15, 15, lessons = listOf(
             Lesson("1", "Digital marketing foundations", "18 min", true),
@@ -70,11 +67,11 @@ class StudentRepositoryImpl @Inject constructor(
         Update("JOBS", "Two new jobs are live", "SEO and Meta Ads roles in Hyderabad.", "11 days ago")
     )
 
-    override val dashboard = combine(dao.observeDoubts(), dao.observeJobs(), remoteDoubts, student) { savedDoubts, savedJobs, serverDoubts, activeStudent ->
+    override val dashboard = combine(dao.observeDoubts(), dao.observeJobs(), remoteDoubts, _student) { savedDoubts, savedJobs, serverDoubts, activeStudent ->
         Dashboard(
-            activeStudent, courses,
+            activeStudent ?: Student("", "", "", "", "", "", ""), courses,
             savedJobs.map { it.toDomain() } + seedJobs,
-            serverDoubts + savedDoubts.map { it.toDomain() } + seedDoubts,
+            serverDoubts + savedDoubts.map { it.toDomain() } /*+ seedDoubts*/,
             seniors, updates
         )
     }
@@ -82,7 +79,7 @@ class StudentRepositoryImpl @Inject constructor(
     init {
         scope.launch {
             supabase.restore()?.let { restored ->
-                student.value = restored
+                _student.value = restored
                 refreshDoubts()
             }
         }
@@ -98,33 +95,57 @@ class StudentRepositoryImpl @Inject constructor(
     }
 
     override suspend fun login(code: String, password: String): Result<Unit> = runCatching {
-        student.value = supabase.signIn(code, password)
+        _student.value = supabase.signIn(code, password)
         dao.saveSession(SessionEntity(studentCode = code))
         refreshDoubts()
     }
 
-    override suspend fun logout() { supabase.signOut(); dao.clearSession(); remoteDoubts.value = emptyList() }
+    override suspend fun logout() { supabase.signOut(); dao.clearSession(); remoteDoubts.value = emptyList(); _student.value = null }
 
     override suspend fun askDoubt(question: String, description: String) {
         require(question.isNotBlank()) { "Please enter your question" }
-        supabase.addDoubt(question, description, student.value.name)
+        supabase.addDoubt(question, description, _student.value?.name ?: "Anonymous")
         refreshDoubts()
     }
 
     override suspend fun answerDoubt(doubtId: Long, answer: String) {
         if (answer.isBlank()) return
-        supabase.addAnswer(doubtId, answer, student.value.name)
+        supabase.addAnswer(doubtId, answer, _student.value?.name ?: "Anonymous")
         refreshDoubts()
     }
 
     override suspend fun postJob(job: Job) {
         require(job.title.isNotBlank() && job.company.isNotBlank() && job.phone.length >= 10) { "Enter job title, company and a valid phone number" }
-        supabase.addJob(job, student.value.name)
+        supabase.addJob(job, _student.value?.name ?: "Anonymous")
     }
 
     override suspend fun sendReferral(name: String, phone: String, note: String) {
         require(name.isNotBlank() && phone.length >= 10) { "Enter a valid name and phone number" }
         supabase.addReferral(name, phone, note)
+    }
+
+    override val adminLogs = dao.observeAdminLogs().map { logs ->
+        logs.map { AdminLog(it.studentCode, it.fullName, it.password, it.batch, java.text.SimpleDateFormat("dd MMM, hh:mm a").format(java.util.Date(it.createdAt))) }
+    }
+
+    override suspend fun createStudent(student: Student, password: String): Result<Unit> = runCatching {
+        require(password.length >= 6) { "Password must be at least 6 characters" }
+        val email = "${student.code.lowercase()}@students.vegamdigital.in"
+        supabase.createStudent(`in`.vegamdigital.app.data.remote.CreateStudentRequest(
+            email = email,
+            password = password,
+            fullName = student.name,
+            studentCode = student.code,
+            course = student.course,
+            branch = student.branch,
+            batch = student.batch,
+            rollNumber = student.rollNumber,
+            location = student.location
+        ))
+        // Store locally
+        dao.insertAdminLog(AdminLogEntity(studentCode = student.code, fullName = student.name, password = password, batch = student.batch))
+        // Store on Server
+        runCatching { supabase.addAdminLog(student.code, student.name, password, student.batch) }
     }
 
     private suspend fun refreshDoubts() { remoteDoubts.value = supabase.getDoubts() }

@@ -36,6 +36,16 @@ data class JobEntity(
     val postedAt: Long = System.currentTimeMillis()
 )
 
+@Entity(tableName = "admin_logs")
+data class AdminLogEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val studentCode: String,
+    val fullName: String,
+    val password: String,
+    val batch: String,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
 @Dao
 interface VegamDao {
     @Query("SELECT * FROM session WHERE id = 1") fun observeSession(): Flow<SessionEntity?>
@@ -45,7 +55,10 @@ interface VegamDao {
     @Insert suspend fun insertDoubt(doubt: DoubtEntity)
     @Query("SELECT * FROM jobs ORDER BY postedAt DESC") fun observeJobs(): Flow<List<JobEntity>>
     @Insert suspend fun insertJob(job: JobEntity)
+
+    @Query("SELECT * FROM admin_logs ORDER BY createdAt DESC") fun observeAdminLogs(): Flow<List<AdminLogEntity>>
+    @Insert suspend fun insertAdminLog(log: AdminLogEntity)
 }
 
-@Database(entities = [SessionEntity::class, DoubtEntity::class, JobEntity::class], version = 1, exportSchema = false)
+@Database(entities = [SessionEntity::class, DoubtEntity::class, JobEntity::class, AdminLogEntity::class], version = 2, exportSchema = false)
 abstract class VegamDatabase : RoomDatabase() { abstract fun dao(): VegamDao }

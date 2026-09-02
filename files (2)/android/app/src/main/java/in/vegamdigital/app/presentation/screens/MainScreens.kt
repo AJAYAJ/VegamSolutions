@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -163,6 +164,9 @@ fun ProfileScreen(data: Dashboard, navigate: (String) -> Unit, logout: () -> Uni
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { StudentCard(data.student, Modifier.fillMaxWidth()) }
             item { SectionTitle("Student hub") }
+            if (data.student.isAdmin) {
+                item { ActionRow(Icons.Outlined.AdminPanelSettings, "Admin Panel", "Manage students and academy settings", BrandBlue) { navigate("admin") } }
+            }
             item { ActionRow(Icons.Outlined.Groups, "Your seniors", "Course complete chesina vaallatho connect avvandi", Mint) { navigate("seniors") } }
             item { ActionRow(Icons.Outlined.CardGiftcard, "Refer a friend", "Share learning with a friend", Gold) { navigate("referral") } }
             item { ActionRow(Icons.Outlined.WorkspacePremium, "Certificate", "View and share your achievement", BrandBlue) { navigate("certificate") } }

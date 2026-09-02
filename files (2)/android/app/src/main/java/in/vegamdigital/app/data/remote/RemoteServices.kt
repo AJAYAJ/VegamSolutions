@@ -37,6 +37,19 @@ data class ProfileDto(
     val branch: String,
     val batch: String,
     @SerializedName("roll_number") val rollNumber: String,
+    val location: String,
+    @SerializedName("is_admin") val isAdmin: Boolean = false
+)
+
+data class CreateStudentRequest(
+    val email: String,
+    val password: String,
+    @SerializedName("full_name") val fullName: String,
+    @SerializedName("student_code") val studentCode: String,
+    val course: String,
+    val branch: String,
+    val batch: String,
+    @SerializedName("roll_number") val rollNumber: String,
     val location: String
 )
 
@@ -89,6 +102,14 @@ data class NewReferral(
     val note: String
 )
 
+data class AdminLogDto(
+    @SerializedName("student_code") val studentCode: String,
+    @SerializedName("full_name") val fullName: String,
+    val password: String,
+    val batch: String,
+    @SerializedName("admin_id") val adminId: String? = null
+)
+
 interface SupabaseApi {
     @POST("auth/v1/token")
     suspend fun signIn(@Query("grant_type") grantType: String = "password", @Body body: PasswordRequest): AuthResponse
@@ -112,6 +133,10 @@ interface SupabaseApi {
     @POST("rest/v1/answers") suspend fun addAnswer(@Body body: NewAnswer)
     @POST("rest/v1/jobs") suspend fun addJob(@Body body: NewJob)
     @POST("rest/v1/referrals") suspend fun addReferral(@Body body: NewReferral)
+    @POST("rest/v1/admin_logs") suspend fun addAdminLog(@Body body: AdminLogDto)
+
+    @POST("functions/v1/create-student")
+    suspend fun createStudent(@Body body: CreateStudentRequest)
 }
 
 @Singleton
@@ -213,13 +238,21 @@ class SupabaseGateway @Inject constructor(
         api.addReferral(NewReferral(requireUserId(), name, phone, note))
     }
 
+    suspend fun createStudent(request: CreateStudentRequest) = authorized {
+        api.createStudent(request)
+    }
+
+    suspend fun addAdminLog(studentCode: String, fullName: String, password: String, batch: String) = authorized {
+        api.addAdminLog(AdminLogDto(studentCode, fullName, password, batch, session.userId))
+    }
+
     private suspend fun loadProfile(): Student = authorized { loadProfileDirect() }
 
     private suspend fun loadProfileDirect(): Student {
         val row = api.profile("eq.${requireUserId()}").singleOrNull()
             ?: error("Student profile not found")
         return Student(row.studentCode, row.fullName, row.course, row.branch, row.batch,
-            row.rollNumber, row.location)
+            row.rollNumber, row.location, row.isAdmin)
     }
 
     private suspend fun <T> authorized(block: suspend () -> T): T {

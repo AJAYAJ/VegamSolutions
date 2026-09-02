@@ -30,7 +30,7 @@ fun PageHeader(title: String, onNotifications: () -> Unit, onBack: (() -> Unit)?
             .statusBarsPadding().padding(horizontal = 20.dp, vertical = 18.dp)
     ) {
         Column(Modifier.align(Alignment.CenterStart).padding(start = if (onBack == null) 0.dp else 42.dp)) {
-            Text("DIGITAL MARKETING · AMEERPET", color = BrandBlue.copy(.85f), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Text("DIGITAL MARKETING · SR Nagar", color = BrandBlue.copy(.85f), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             Spacer(Modifier.height(5.dp))
             Text(title, color = Color.White, style = MaterialTheme.typography.headlineMedium)
         }
@@ -49,7 +49,7 @@ fun StudentCard(student: Student, modifier: Modifier = Modifier, compact: Boolea
         Box(Modifier.fillMaxWidth().background(Navy).padding(22.dp)) {
             Column {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("SKILL YOU FORWARD ››", color = Gold, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Text("Vegam Digital Academy ››", color = Gold, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                     Text(student.location, color = Color.White.copy(.72f), fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.height(if (compact) 18.dp else 26.dp))
@@ -60,7 +60,7 @@ fun StudentCard(student: Student, modifier: Modifier = Modifier, compact: Boolea
                 if (!compact) {
                     HorizontalDivider(Modifier.padding(vertical = 18.dp), color = Color.White.copy(.15f))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        CodePart("SYF", "Institute"); CodePart(student.branch, "Branch"); CodePart("DM26", "Digital Mktg · 2026")
+                        CodePart("VDA", "Institute"); CodePart(student.branch, "Branch"); CodePart("DM26", "Digital Mktg · 2026")
                         CodePart(student.batch, "Batch"); CodePart(student.rollNumber, "Roll no")
                     }
                 }

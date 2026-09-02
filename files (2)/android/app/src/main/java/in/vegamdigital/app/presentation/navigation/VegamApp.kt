@@ -3,6 +3,8 @@ package `in`.vegamdigital.app.presentation.navigation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.outlined.AdminPanelSettings
+import androidx.compose.material.icons.rounded.AdminPanelSettings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.foundation.layout.padding
@@ -29,7 +31,7 @@ private data class BottomItem(
 
 private val bottomItems = listOf(
     BottomItem("home", "Home", Icons.Rounded.Home, Icons.Outlined.Home),
-    BottomItem("courses", "Course", Icons.Rounded.MenuBook, Icons.Outlined.MenuBook),
+//    BottomItem("courses", "Course", Icons.Rounded.MenuBook, Icons.Outlined.MenuBook),
     BottomItem("jobs", "Jobs", Icons.Rounded.Work, Icons.Outlined.WorkOutline),
     BottomItem("doubts", "Doubts", Icons.Rounded.ContactSupport, Icons.Outlined.ContactSupport),
     BottomItem("profile", "Profile", Icons.Rounded.Person, Icons.Outlined.PersonOutline)
@@ -44,17 +46,26 @@ fun VegamApp(viewModel: AppViewModel = hiltViewModel()) {
         when (state.signedIn) {
             null -> LoadingScreen()
             false -> LoginScreen(state.busy, viewModel::login)
-            true -> state.dashboard?.let { MainShell(it, state.busy, viewModel) } ?: LoadingScreen()
+            true -> state.dashboard?.let { MainShell(it, state.busy, viewModel, state.isAdmin) } ?: LoadingScreen()
         }
     }
 }
 
 @Composable
-private fun MainShell(data: Dashboard, busy: Boolean, viewModel: AppViewModel) {
+private fun MainShell(data: Dashboard, busy: Boolean, viewModel: AppViewModel, isAdmin: Boolean) {
     val nav = rememberNavController()
     val backStack by nav.currentBackStackEntryAsState()
     val current = backStack?.destination?.route
-    val showBottom = bottomItems.any { it.route == current }
+
+    val items = remember(isAdmin) {
+        if (isAdmin) {
+            bottomItems + BottomItem("admin", "Admin", Icons.Rounded.AdminPanelSettings, Icons.Outlined.AdminPanelSettings)
+        } else {
+            bottomItems
+        }
+    }
+
+    val showBottom = items.any { it.route == current }
     fun go(route: String) {
         nav.navigate(route)
     }
@@ -62,7 +73,7 @@ private fun MainShell(data: Dashboard, busy: Boolean, viewModel: AppViewModel) {
         containerColor = Paper,
         bottomBar = {
             if (showBottom) NavigationBar(containerColor = androidx.compose.ui.graphics.Color.White) {
-                bottomItems.forEach { item ->
+                items.forEach { item ->
                     val selected = current == item.route; NavigationBarItem(
                     selected = selected,
                     onClick = {
@@ -86,8 +97,9 @@ private fun MainShell(data: Dashboard, busy: Boolean, viewModel: AppViewModel) {
             }
         }
     ) { padding ->
-        NavHost(nav, "home", Modifier.padding(padding)) {
+        NavHost(nav, if (isAdmin) "admin" else "home", Modifier.padding(padding)) {
             composable("home") { HomeScreen(data, ::go) }
+            composable("admin") { AdminDashboard(viewModel) { go("notifications") } }
             composable("courses") { CoursesScreen(data, ::go) }
             composable("jobs") { JobsScreen(data, ::go) }
             composable("doubts") { DoubtsScreen(data, ::go) }

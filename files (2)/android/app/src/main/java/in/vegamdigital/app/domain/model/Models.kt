@@ -7,7 +7,8 @@ data class Student(
     val branch: String,
     val batch: String,
     val rollNumber: String,
-    val location: String
+    val location: String,
+    val isAdmin: Boolean = false
 )
 
 data class Course(

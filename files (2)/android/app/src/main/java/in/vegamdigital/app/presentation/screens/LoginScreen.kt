@@ -1,12 +1,17 @@
 package `in`.vegamdigital.app.presentation.screens
 
+import android.graphics.drawable.Icon
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,8 +28,8 @@ import `in`.vegamdigital.app.presentation.theme.*
 
 @Composable
 fun LoginScreen(busy: Boolean, onLogin: (String, String) -> Unit) {
-    var code by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var code by remember { mutableStateOf("SYF-AMP-DM26-B03-014") }
+    var password by remember { mutableStateOf("student123") }
     Box(
         Modifier
             .fillMaxSize()
@@ -35,6 +40,8 @@ fun LoginScreen(busy: Boolean, onLogin: (String, String) -> Unit) {
         Column(
             Modifier
                 .fillMaxWidth()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -45,7 +52,7 @@ fun LoginScreen(busy: Boolean, onLogin: (String, String) -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "SYF",
+                    "VDA",
                     color = Color.White,
                     fontSize = 30.sp,
                     fontWeight = FontWeight.ExtraBold
@@ -60,7 +67,7 @@ fun LoginScreen(busy: Boolean, onLogin: (String, String) -> Unit) {
                 )
             }
             Spacer(Modifier.height(28.dp))
-            Text("Skill You Forward", style = MaterialTheme.typography.headlineLarge, color = Ink)
+            Text("Vegam Digital Academy", style = MaterialTheme.typography.headlineLarge, color = Ink)
             Text(
                 "డిజిటల్ మార్కెటింగ్ — క్లాసులు, జాబ్స్, డౌట్స్",
                 color = Muted,
@@ -72,6 +79,7 @@ fun LoginScreen(busy: Boolean, onLogin: (String, String) -> Unit) {
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(Color.White)
             ) {
+                var passwordVisible by remember { mutableStateOf(false) }
                 Column(Modifier.padding(18.dp)) {
                     OutlinedTextField(
                         code,
@@ -88,6 +96,22 @@ fun LoginScreen(busy: Boolean, onLogin: (String, String) -> Unit) {
                         Modifier.fillMaxWidth(),
                         label = { Text("Password · పాస్‌వర్డ్") },
                         leadingIcon = { Icon(Icons.Outlined.Lock, null) },
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    imageVector = if (passwordVisible){
+                                        Icons.Outlined.VisibilityOff
+                                    } else {
+                                        Icons.Outlined.Visibility
+                                    },
+                                    contentDescription = if (passwordVisible){
+                                        "Hide password"
+                                    } else {
+                                        "Show password"
+                                    }
+                                )
+                            }
+                        },
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         singleLine = true
