@@ -69,6 +69,20 @@ data class DoubtDto(
     val answers: List<AnswerDto> = emptyList()
 )
 
+data class UpdateDto(
+    val id: Long,
+    val type: String,
+    val title: String,
+    val message: String,
+    @SerializedName("created_at") val createdAt: String? = null
+)
+
+data class NewUpdate(
+    val type: String,
+    val title: String,
+    val message: String
+)
+
 data class NewDoubt(
     @SerializedName("student_id") val studentId: String,
     @SerializedName("author_name") val authorName: String,
@@ -120,6 +134,8 @@ interface SupabaseApi {
 
     @POST("auth/v1/logout") suspend fun signOut()
 
+    @GET("auth/v1/user") suspend fun currentUser(): AuthUser
+
     @GET("rest/v1/profiles")
     suspend fun profile(@Query("id") id: String, @Query("select") select: String = "*"): List<ProfileDto>
 
@@ -130,7 +146,15 @@ interface SupabaseApi {
         @Query("answers.order") answersOrder: String = "created_at.asc"
     ): List<DoubtDto>
 
+    @GET("rest/v1/app_updates")
+    suspend fun updates(
+        @Query("select") select: String = "id,type,title,message,created_at",
+        @Query("is_active") isActive: String = "eq.true",
+        @Query("order") order: String = "created_at.desc"
+    ): List<UpdateDto>
+
     @POST("rest/v1/doubts") suspend fun addDoubt(@Body body: NewDoubt)
+    @POST("rest/v1/app_updates") suspend fun addUpdate(@Body body: NewUpdate)
     @POST("rest/v1/answers") suspend fun addAnswer(@Body body: NewAnswer)
     @POST("rest/v1/jobs") suspend fun addJob(@Body body: NewJob)
     @POST("rest/v1/referrals") suspend fun addReferral(@Body body: NewReferral)
@@ -227,6 +251,12 @@ class SupabaseGateway @Inject constructor(
         )
     }
 
+    suspend fun getUpdates(): List<UpdateDto> = authorized { api.updates() }
+
+    suspend fun addUpdate(type: String, title: String, message: String) = authorized {
+        api.addUpdate(NewUpdate(type, title, message))
+    }
+
     suspend fun addDoubt(question: String, description: String, author: String) = authorized {
         api.addDoubt(NewDoubt(requireUserId(), author, question, description))
     }
@@ -254,6 +284,19 @@ class SupabaseGateway @Inject constructor(
 
     suspend fun getAdminLogs(): List<AdminLogDto> = authorized { api.adminLogs() }
 
+    suspend fun validateCurrentSession(): Boolean {
+        if (!session.signedIn.value) return false
+        return try {
+            authorized { api.currentUser() }
+            true
+        } catch (error: HttpException) {
+            if (error.code() == 401 || error.code() == 403) session.clear()
+            false
+        } catch (_: SessionReplacedException) {
+            false
+        }
+    }
+
     private suspend fun loadProfile(): Student = authorized { loadProfileDirect() }
 
     private suspend fun loadProfileDirect(): Student {
@@ -265,11 +308,24 @@ class SupabaseGateway @Inject constructor(
 
     private suspend fun <T> authorized(block: suspend () -> T): T {
         checkConfigured()
+        val accessTokenUsed = session.accessToken
         return try { block() } catch (error: HttpException) {
             if (error.code() != 401 || session.refreshToken.isNullOrBlank()) throw error
-            refreshMutex.withLock {
-                val refreshed = api.refresh(body = RefreshRequest(session.refreshToken!!))
-                session.save(refreshed)
+            try {
+                refreshMutex.withLock {
+                    // Another request may already have refreshed this session while
+                    // this request was waiting for the mutex.
+                    if (session.accessToken == accessTokenUsed) {
+                        val refreshed = api.refresh(body = RefreshRequest(session.refreshToken!!))
+                        session.save(refreshed)
+                    }
+                }
+            } catch (refreshError: HttpException) {
+                if (refreshError.code() == 400 || refreshError.code() == 401 || refreshError.code() == 403) {
+                    session.clear()
+                    throw SessionReplacedException()
+                }
+                throw refreshError
             }
             block()
         }
@@ -285,3 +341,7 @@ class SupabaseGateway @Inject constructor(
 
     private fun studentEmail(code: String) = "${code.lowercase()}@students.vegamdigital.in"
 }
+
+class SessionReplacedException : IllegalStateException(
+    "This account was signed in on another device. Please sign in again."
+)

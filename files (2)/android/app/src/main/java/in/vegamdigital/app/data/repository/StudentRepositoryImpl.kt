@@ -12,6 +12,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -31,6 +32,7 @@ class StudentRepositoryImpl @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var doubtPollingJob: CoroutineJob? = null
     private val remoteDoubts = MutableStateFlow<List<Doubt>>(emptyList())
+    private val remoteUpdates = MutableStateFlow<List<Update>>(emptyList())
     private val remoteAdminLogs = MutableStateFlow<List<AdminLog>?>(null)
     override val signedIn = supabase.signedIn
 
@@ -64,18 +66,12 @@ class StudentRepositoryImpl @Inject constructor(
         Senior("Sravani M", "Google Ads Executive", "Grow Media", "SYF-AMP-DM24-B02-011", "+919876500022"),
         Senior("Imran Khan", "Performance Marketer", "PixelWorks", "SYF-AMP-DM25-B03-002", "+919876500033")
     )
-    private val updates = listOf(
-        Update("COURSE", "Free course: AI Tools for Marketers", "Extra fee ledu — Course tab lo chudandi.", "7 days ago"),
-        Update("COURSE", "Module 14 add chesamu", "Ad Fraud Detection & Client Defense.", "9 days ago"),
-        Update("JOBS", "Two new jobs are live", "SEO and Meta Ads roles in Hyderabad.", "11 days ago")
-    )
-
-    override val dashboard = combine(dao.observeDoubts(), dao.observeJobs(), remoteDoubts, _student) { savedDoubts, savedJobs, serverDoubts, activeStudent ->
+    override val dashboard = combine(dao.observeDoubts(), dao.observeJobs(), remoteDoubts, remoteUpdates, _student) { savedDoubts, savedJobs, serverDoubts, serverUpdates, activeStudent ->
         Dashboard(
             activeStudent ?: Student("", "", "", "", "", "", ""), courses,
             savedJobs.map { it.toDomain() } + seedJobs,
             serverDoubts + savedDoubts.map { it.toDomain() } /*+ seedDoubts*/,
-            seniors, updates
+            seniors, serverUpdates
         )
     }
 
@@ -84,6 +80,17 @@ class StudentRepositoryImpl @Inject constructor(
             supabase.restore()?.let { restored ->
                 _student.value = restored
                 fetchDoubts()
+                fetchUpdates()
+            }
+        }
+        scope.launch {
+            supabase.signedIn.collectLatest { isSignedIn ->
+                if (!isSignedIn) return@collectLatest
+                while (currentCoroutineContext().isActive) {
+                    delay(SESSION_VALIDATION_MILLIS.milliseconds)
+                    if (!supabase.validateCurrentSession()) return@collectLatest
+                    runCatching { fetchUpdates() }
+                }
             }
         }
 
@@ -93,6 +100,7 @@ class StudentRepositoryImpl @Inject constructor(
         _student.value = supabase.signIn(code, password)
         dao.saveSession(SessionEntity(studentCode = code))
         fetchDoubts()
+        fetchUpdates()
     }
 
     override suspend fun logout() {
@@ -100,6 +108,7 @@ class StudentRepositoryImpl @Inject constructor(
         supabase.signOut()
         dao.clearSession()
         remoteDoubts.value = emptyList()
+        remoteUpdates.value = emptyList()
         _student.value = null
     }
 
@@ -144,6 +153,15 @@ class StudentRepositoryImpl @Inject constructor(
         supabase.addReferral(name, phone, note)
     }
 
+    override suspend fun postUpdate(type: String, title: String, message: String) {
+        check(_student.value?.isAdmin == true) { "Only admins can post updates" }
+        require(type in setOf("GENERAL", "COURSE", "JOBS")) { "Select a valid update type" }
+        require(title.isNotBlank()) { "Enter an update title" }
+        require(message.isNotBlank()) { "Enter an update message" }
+        supabase.addUpdate(type, title.trim(), message.trim())
+        fetchUpdates()
+    }
+
     override val adminLogs = combine(dao.observeAdminLogs(), remoteAdminLogs) { localLogs, serverLogs ->
         serverLogs ?: localLogs.map {
             AdminLog(it.studentCode, it.fullName, it.password, it.batch, formatDate(it.createdAt))
@@ -177,6 +195,26 @@ class StudentRepositoryImpl @Inject constructor(
     }
 
     private suspend fun fetchDoubts() { remoteDoubts.value = supabase.getDoubts() }
+    private suspend fun fetchUpdates() {
+        remoteUpdates.value = supabase.getUpdates().map {
+            Update(it.type, it.title, it.message, formatRelativeTime(it.createdAt), it.id, it.createdAt)
+        }
+    }
+
+    private fun formatRelativeTime(timestamp: String?): String {
+        if (timestamp.isNullOrBlank()) return "Recently"
+        return runCatching {
+            val instant = java.time.Instant.parse(timestamp)
+            val minutes = java.time.Duration.between(instant, java.time.Instant.now()).toMinutes().coerceAtLeast(0)
+            when {
+                minutes < 1 -> "Just now"
+                minutes < 60 -> "$minutes min ago"
+                minutes < 1_440 -> "${minutes / 60} hr ago"
+                minutes < 2_880 -> "Yesterday"
+                else -> "${minutes / 1_440} days ago"
+            }
+        }.getOrDefault("Recently")
+    }
     private fun formatDate(timestamp: Long): String =
         java.text.SimpleDateFormat("dd MMM, hh:mm a", java.util.Locale.getDefault())
             .format(java.util.Date(timestamp))
@@ -191,5 +229,8 @@ class StudentRepositoryImpl @Inject constructor(
     private fun DoubtEntity.toDomain() = Doubt(id, question, description, author, "Just now")
     private fun JobEntity.toDomain() = Job(id, title, company, location, salary, experience, description, contactName, phone, "Pending approval")
 
-    private companion object { const val CHAT_REFRESH_MILLIS = 15_000L }
+    private companion object {
+        const val CHAT_REFRESH_MILLIS = 15_000L
+        const val SESSION_VALIDATION_MILLIS = 60_000L
+    }
 }

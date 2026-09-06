@@ -19,6 +19,7 @@ interface StudentRepository {
     suspend fun refreshDoubts()
     suspend fun postJob(job: Job)
     suspend fun sendReferral(name: String, phone: String, note: String)
+    suspend fun postUpdate(type: String, title: String, message: String)
     suspend fun createStudent(student: Student, password: String): Result<Unit>
     val adminLogs: Flow<List<AdminLog>>
     suspend fun refreshAdminLogs()

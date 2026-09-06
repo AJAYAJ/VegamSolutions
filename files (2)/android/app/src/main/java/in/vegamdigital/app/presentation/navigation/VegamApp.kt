@@ -8,6 +8,7 @@ import androidx.compose.material.icons.rounded.AdminPanelSettings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -17,6 +18,7 @@ import androidx.navigation.compose.*
 import `in`.vegamdigital.app.domain.model.Dashboard
 import `in`.vegamdigital.app.presentation.AppViewModel
 import `in`.vegamdigital.app.presentation.components.LoadingScreen
+import `in`.vegamdigital.app.presentation.components.LocalUnreadNotificationCount
 import `in`.vegamdigital.app.presentation.screens.*
 import `in`.vegamdigital.app.presentation.theme.BrandBlue
 import `in`.vegamdigital.app.presentation.theme.Muted
@@ -54,6 +56,15 @@ fun VegamApp(viewModel: AppViewModel = hiltViewModel()) {
 @Composable
 private fun MainShell(data: Dashboard, busy: Boolean, viewModel: AppViewModel, isAdmin: Boolean) {
     val nav = rememberNavController()
+    val context = LocalContext.current
+    val readState = remember { context.getSharedPreferences("notification_read_state", android.content.Context.MODE_PRIVATE) }
+    val lastSeenKey = remember(data.student.code) { "last_seen_${data.student.code}" }
+    var lastSeenMillis by remember(lastSeenKey) {
+        mutableLongStateOf(readState.getLong(lastSeenKey, 0L))
+    }
+    val unreadCount = remember(data.updates, lastSeenMillis) {
+        data.updates.count { update -> update.createdAt.toEpochMillis() > lastSeenMillis }
+    }
     val backStack by nav.currentBackStackEntryAsState()
     val current = backStack?.destination?.route
 
@@ -69,6 +80,7 @@ private fun MainShell(data: Dashboard, busy: Boolean, viewModel: AppViewModel, i
     fun go(route: String) {
         nav.navigate(route)
     }
+    CompositionLocalProvider(LocalUnreadNotificationCount provides unreadCount) {
     Scaffold(
         containerColor = Paper,
         bottomBar = {
@@ -104,7 +116,16 @@ private fun MainShell(data: Dashboard, busy: Boolean, viewModel: AppViewModel, i
             composable("jobs") { JobsScreen(data, ::go) }
             composable("doubts") { DoubtsScreen(data, ::go) }
             composable("profile") { ProfileScreen(data, ::go, viewModel::logout) }
-            composable("notifications") { NotificationsScreen(data.updates, nav::popBackStack) }
+            composable("notifications") {
+                LaunchedEffect(data.updates) {
+                    val newestUpdate = data.updates.maxOfOrNull { it.createdAt.toEpochMillis() } ?: 0L
+                    if (newestUpdate > lastSeenMillis) {
+                        lastSeenMillis = newestUpdate
+                        readState.edit().putLong(lastSeenKey, newestUpdate).apply()
+                    }
+                }
+                NotificationsScreen(data.updates, nav::popBackStack)
+            }
             composable("bonus") { BonusCoursesScreen(data, ::go, nav::popBackStack) }
             composable("seniors") { SeniorsScreen(data, nav::popBackStack) { go("notifications") } }
             composable("referral") {
@@ -164,4 +185,9 @@ private fun MainShell(data: Dashboard, busy: Boolean, viewModel: AppViewModel, i
             }
         }
     }
+    }
 }
+
+private fun String?.toEpochMillis(): Long = runCatching {
+    if (this.isNullOrBlank()) 0L else java.time.Instant.parse(this).toEpochMilli()
+}.getOrDefault(0L)

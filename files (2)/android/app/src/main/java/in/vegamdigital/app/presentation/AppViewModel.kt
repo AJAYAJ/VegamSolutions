@@ -72,6 +72,11 @@ class AppViewModel @Inject constructor(
         repository.refreshAdminLogs()
     }
 
+    fun postUpdate(type: String, title: String, message: String, done: () -> Unit) =
+        launchAction("Update published", done) {
+            repository.postUpdate(type, title, message)
+        }
+
     fun clearMessage() { message.value = null }
 
     private fun launchAction(success: String, done: () -> Unit = {}, action: suspend () -> Unit) = viewModelScope.launch {

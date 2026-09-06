@@ -37,6 +37,7 @@ fun AdminDashboard(viewModel: AppViewModel, onNotifications: () -> Unit) {
         onCreateStudent = { student, password, onDone ->
             viewModel.createStudent(student, password, onDone)
         },
+        onPostUpdate = viewModel::postUpdate,
         onRefreshLogs = viewModel::refreshAdminLogs
     )
 }
@@ -46,9 +47,11 @@ fun AdminDashboardContent(
     state: AppUiState,
     onNotifications: () -> Unit,
     onCreateStudent: (Student, String, () -> Unit) -> Unit,
+    onPostUpdate: (String, String, String, () -> Unit) -> Unit,
     onRefreshLogs: () -> Unit
 ) {
     var showCreateForm by remember { mutableStateOf(false) }
+    var showUpdateForm by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
     val filteredLogs = remember(state.adminLogs, searchQuery) {
@@ -70,6 +73,16 @@ fun AdminDashboardContent(
                     onSubmit = { student, password ->
                         onCreateStudent(student, password) {
                             showCreateForm = false
+                        }
+                    }
+                )
+            } else if (showUpdateForm) {
+                CreateUpdateForm(
+                    busy = state.busy,
+                    onCancel = { showUpdateForm = false },
+                    onSubmit = { type, title, message ->
+                        onPostUpdate(type, title, message) {
+                            showUpdateForm = false
                         }
                     }
                 )
@@ -98,6 +111,27 @@ fun AdminDashboardContent(
                                 Column {
                                     Text("Create New Student", style = MaterialTheme.typography.titleMedium)
 //                                Text("Add a student to Supabase Auth and Profiles", style = MaterialTheme.typography.bodySmall, color = Muted)
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Card(
+                            onClick = { showUpdateForm = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(Color.White)
+                        ) {
+                            Row(
+                                Modifier.padding(20.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Outlined.Campaign, null, tint = BrandBlue)
+                                Spacer(Modifier.width(16.dp))
+                                Column {
+                                    Text("Post App Update", style = MaterialTheme.typography.titleMedium)
+                                    Text("Publish a notification to all students", style = MaterialTheme.typography.bodySmall, color = Muted)
                                 }
                             }
                         }
@@ -165,6 +199,65 @@ fun AdminDashboardContent(
                 ) {
                     CircularProgressIndicator(color = BrandBlue)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun CreateUpdateForm(
+    busy: Boolean,
+    onCancel: () -> Unit,
+    onSubmit: (String, String, String) -> Unit
+) {
+    val updateTypes = listOf("GENERAL", "COURSE", "JOBS")
+    var type by remember { mutableStateOf(updateTypes.first()) }
+    var title by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+
+    LazyColumn(
+        Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item { SectionTitle("Post App Update", "This will be visible to all students") }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                updateTypes.forEach { option ->
+                    FilterChip(
+                        selected = type == option,
+                        onClick = { type = option },
+                        label = { Text(option) }
+                    )
+                }
+            }
+        }
+        item {
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = { Text("Title") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+        }
+        item {
+            OutlinedTextField(
+                value = message,
+                onValueChange = { message = it },
+                label = { Text("Message") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 4
+            )
+        }
+        item {
+            Spacer(Modifier.height(12.dp))
+            PrimaryButton(
+                text = if (busy) "Publishing..." else "Publish Update",
+                enabled = !busy && title.isNotBlank() && message.isNotBlank(),
+                modifier = Modifier.fillMaxWidth()
+            ) { onSubmit(type, title.trim(), message.trim()) }
+            TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth(), enabled = !busy) {
+                Text("Cancel")
             }
         }
     }
@@ -315,6 +408,7 @@ fun AdminDashboardPreview() {
             ),
             onNotifications = {},
             onCreateStudent = { _, _, _ -> },
+            onPostUpdate = { _, _, _, _ -> },
             onRefreshLogs = {}
         )
     }

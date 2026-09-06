@@ -49,7 +49,14 @@ data class Doubt(
 
 data class Answer(val author: String, val text: String, val postedAgo: String)
 data class Senior(val name: String, val role: String, val company: String, val code: String, val phone: String)
-data class Update(val type: String, val title: String, val message: String, val postedAgo: String)
+data class Update(
+    val type: String,
+    val title: String,
+    val message: String,
+    val postedAgo: String,
+    val id: Long = 0,
+    val createdAt: String? = null
+)
 
 data class Dashboard(
     val student: Student,
