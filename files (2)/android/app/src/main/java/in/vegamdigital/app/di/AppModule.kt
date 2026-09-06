@@ -35,12 +35,14 @@ object AppModule {
     @Provides @Singleton fun httpClient(session: SupabaseSessionStore): OkHttpClient =
         OkHttpClient.Builder().addInterceptor { chain ->
             val token = session.accessToken ?: `in`.vegamdigital.app.BuildConfig.SUPABASE_ANON_KEY
-            val request = chain.request().newBuilder()
+            val requestBuilder = chain.request().newBuilder()
                 .header("apikey", `in`.vegamdigital.app.BuildConfig.SUPABASE_ANON_KEY)
                 .header("Authorization", "Bearer $token")
                 .header("Content-Type", "application/json")
-                .header("Prefer", "return=minimal")
-                .build()
+            if (chain.request().header("Prefer") == null) {
+                requestBuilder.header("Prefer", "return=minimal")
+            }
+            val request = requestBuilder.build()
             val response = chain.proceed(request)
             if (`in`.vegamdigital.app.BuildConfig.DEBUG) {
                 Log.d("SupabaseHttp", "${request.method()} ${request.url()} -> ${response.code()}")

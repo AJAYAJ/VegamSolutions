@@ -29,8 +29,8 @@ import `in`.vegamdigital.app.presentation.theme.*
 
 @Composable
 fun LoginScreen(busy: Boolean, onLogin: (String, String) -> Unit) {
-    var code by remember { mutableStateOf("SYF-AMP-DM26-B03-014") }
-    var password by remember { mutableStateOf("student123") }
+    var code by remember { mutableStateOf("DM26-B01-01") }
+    var password by remember { mutableStateOf("RD9TbETQ") }
     Box(
         Modifier
             .fillMaxSize()

@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,7 +39,8 @@ fun AdminDashboard(viewModel: AppViewModel, onNotifications: () -> Unit) {
             viewModel.createStudent(student, password, onDone)
         },
         onPostUpdate = viewModel::postUpdate,
-        onRefreshLogs = viewModel::refreshAdminLogs
+        onRefreshLogs = viewModel::refreshAdminLogs,
+        onLogout = viewModel::logout
     )
 }
 
@@ -48,7 +50,8 @@ fun AdminDashboardContent(
     onNotifications: () -> Unit,
     onCreateStudent: (Student, String, () -> Unit) -> Unit,
     onPostUpdate: (String, String, String, () -> Unit) -> Unit,
-    onRefreshLogs: () -> Unit
+    onRefreshLogs: () -> Unit,
+    onLogout: () -> Unit
 ) {
     var showCreateForm by remember { mutableStateOf(false) }
     var showUpdateForm by remember { mutableStateOf(false) }
@@ -183,6 +186,22 @@ fun AdminDashboardContent(
 
                     items(filteredLogs) { log ->
                         AdminLogCard(log)
+                    }
+
+                    item {
+                        OutlinedButton(
+                            onClick = onLogout,
+                            enabled = !state.busy,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Logout")
+                        }
                     }
                     
                     item { Spacer(Modifier.height(20.dp)) }
@@ -409,7 +428,8 @@ fun AdminDashboardPreview() {
             onNotifications = {},
             onCreateStudent = { _, _, _ -> },
             onPostUpdate = { _, _, _, _ -> },
-            onRefreshLogs = {}
+            onRefreshLogs = {},
+            onLogout = {}
         )
     }
 }

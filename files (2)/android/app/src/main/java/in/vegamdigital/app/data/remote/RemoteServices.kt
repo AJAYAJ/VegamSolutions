@@ -13,7 +13,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import retrofit2.HttpException
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Headers
 import retrofit2.http.POST
 import retrofit2.http.Query
 import javax.inject.Inject
@@ -81,6 +83,12 @@ data class NewUpdate(
     val type: String,
     val title: String,
     val message: String
+)
+
+data class PushTokenRequest(
+    @SerializedName("user_id") val userId: String,
+    val token: String,
+    val platform: String = "android"
 )
 
 data class NewDoubt(
@@ -155,6 +163,16 @@ interface SupabaseApi {
 
     @POST("rest/v1/doubts") suspend fun addDoubt(@Body body: NewDoubt)
     @POST("rest/v1/app_updates") suspend fun addUpdate(@Body body: NewUpdate)
+
+    @Headers("Prefer: resolution=merge-duplicates,return=minimal")
+    @POST("rest/v1/push_tokens")
+    suspend fun registerPushToken(
+        @Query("on_conflict") onConflict: String = "token",
+        @Body body: PushTokenRequest
+    )
+
+    @DELETE("rest/v1/push_tokens")
+    suspend fun deletePushToken(@Query("token") token: String)
     @POST("rest/v1/answers") suspend fun addAnswer(@Body body: NewAnswer)
     @POST("rest/v1/jobs") suspend fun addJob(@Body body: NewJob)
     @POST("rest/v1/referrals") suspend fun addReferral(@Body body: NewReferral)
@@ -255,6 +273,15 @@ class SupabaseGateway @Inject constructor(
 
     suspend fun addUpdate(type: String, title: String, message: String) = authorized {
         api.addUpdate(NewUpdate(type, title, message))
+    }
+
+    suspend fun registerPushToken(token: String) = authorized {
+        require(token.isNotBlank())
+        api.registerPushToken(body = PushTokenRequest(requireUserId(), token))
+    }
+
+    suspend fun deletePushToken(token: String) = authorized {
+        if (token.isNotBlank()) api.deletePushToken("eq.$token")
     }
 
     suspend fun addDoubt(question: String, description: String, author: String) = authorized {

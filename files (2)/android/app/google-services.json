@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "433746673196",
+    "project_id": "vegamdigital",
+    "storage_bucket": "vegamdigital.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:433746673196:android:fab7e08372eec2e1ccdb89",
+        "android_client_info": {
+          "package_name": "in.vegamdigital.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyApJJcfXX-Xm1aAoo2vbvVLxR-byZ090Fc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

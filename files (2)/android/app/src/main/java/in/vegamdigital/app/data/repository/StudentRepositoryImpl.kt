@@ -1,5 +1,7 @@
 package `in`.vegamdigital.app.data.repository
 
+import com.google.firebase.messaging.FirebaseMessaging
+import kotlinx.coroutines.tasks.await
 import `in`.vegamdigital.app.data.local.*
 import `in`.vegamdigital.app.data.remote.SupabaseGateway
 import `in`.vegamdigital.app.domain.model.*
@@ -81,6 +83,7 @@ class StudentRepositoryImpl @Inject constructor(
                 _student.value = restored
                 fetchDoubts()
                 fetchUpdates()
+                syncPushToken()
             }
         }
         scope.launch {
@@ -101,10 +104,14 @@ class StudentRepositoryImpl @Inject constructor(
         dao.saveSession(SessionEntity(studentCode = code))
         fetchDoubts()
         fetchUpdates()
+        syncPushToken()
     }
 
     override suspend fun logout() {
         stopPullingDoubts()
+        runCatching {
+            supabase.deletePushToken(FirebaseMessaging.getInstance().token.await())
+        }
         supabase.signOut()
         dao.clearSession()
         remoteDoubts.value = emptyList()
@@ -195,6 +202,11 @@ class StudentRepositoryImpl @Inject constructor(
     }
 
     private suspend fun fetchDoubts() { remoteDoubts.value = supabase.getDoubts() }
+    private suspend fun syncPushToken() {
+        runCatching {
+            supabase.registerPushToken(FirebaseMessaging.getInstance().token.await())
+        }
+    }
     private suspend fun fetchUpdates() {
         remoteUpdates.value = supabase.getUpdates().map {
             Update(it.type, it.title, it.message, formatRelativeTime(it.createdAt), it.id, it.createdAt)

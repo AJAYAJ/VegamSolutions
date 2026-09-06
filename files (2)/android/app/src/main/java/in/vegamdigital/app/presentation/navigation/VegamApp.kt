@@ -15,7 +15,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.*
-import `in`.vegamdigital.app.domain.model.Dashboard
+import androidx.compose.ui.tooling.preview.Preview
+import `in`.vegamdigital.app.domain.model.*
 import `in`.vegamdigital.app.presentation.AppViewModel
 import `in`.vegamdigital.app.presentation.components.LoadingScreen
 import `in`.vegamdigital.app.presentation.components.LocalUnreadNotificationCount
@@ -23,6 +24,7 @@ import `in`.vegamdigital.app.presentation.screens.*
 import `in`.vegamdigital.app.presentation.theme.BrandBlue
 import `in`.vegamdigital.app.presentation.theme.Muted
 import `in`.vegamdigital.app.presentation.theme.Paper
+import `in`.vegamdigital.app.presentation.theme.VegamTheme
 
 private data class BottomItem(
     val route: String,
@@ -55,6 +57,37 @@ fun VegamApp(viewModel: AppViewModel = hiltViewModel()) {
 
 @Composable
 private fun MainShell(data: Dashboard, busy: Boolean, viewModel: AppViewModel, isAdmin: Boolean) {
+    MainShellContent(
+        data = data,
+        busy = busy,
+        isAdmin = isAdmin,
+        onLogout = { viewModel.logout() },
+        onRefer = { n, e, p -> viewModel.refer(n, e, p) },
+        onAskDoubt = { q, d, onDone -> viewModel.askDoubt(q, d, onDone) },
+        onPostJob = { j, onDone -> viewModel.postJob(j, onDone) },
+        onAnswer = { id, ans -> viewModel.answer(id, ans) },
+        onRefreshDoubts = { viewModel.refreshDoubts() },
+        onStartDoubtPolling = { viewModel.startDoubtPolling() },
+        onStopDoubtPolling = { viewModel.stopDoubtPolling() },
+        adminDashboard = { onNotifications -> AdminDashboard(viewModel, onNotifications) }
+    )
+}
+
+@Composable
+private fun MainShellContent(
+    data: Dashboard,
+    busy: Boolean,
+    isAdmin: Boolean,
+    onLogout: () -> Unit,
+    onRefer: (String, String, String) -> Unit,
+    onAskDoubt: (String, String, () -> Unit) -> Unit,
+    onPostJob: (Job, () -> Unit) -> Unit,
+    onAnswer: (Long, String) -> Unit,
+    onRefreshDoubts: () -> Unit,
+    onStartDoubtPolling: () -> Unit,
+    onStopDoubtPolling: () -> Unit,
+    adminDashboard: @Composable (onNotifications: () -> Unit) -> Unit
+) {
     val nav = rememberNavController()
     val context = LocalContext.current
     val readState = remember { context.getSharedPreferences("notification_read_state", android.content.Context.MODE_PRIVATE) }
@@ -111,11 +144,11 @@ private fun MainShell(data: Dashboard, busy: Boolean, viewModel: AppViewModel, i
     ) { padding ->
         NavHost(nav, if (isAdmin) "admin" else "home", Modifier.padding(padding)) {
             composable("home") { HomeScreen(data, ::go) }
-            composable("admin") { AdminDashboard(viewModel) { go("notifications") } }
+            composable("admin") { adminDashboard { go("notifications") } }
             composable("courses") { CoursesScreen(data, ::go) }
             composable("jobs") { JobsScreen(data, ::go) }
             composable("doubts") { DoubtsScreen(data, ::go) }
-            composable("profile") { ProfileScreen(data, ::go, viewModel::logout) }
+            composable("profile") { ProfileScreen(data, ::go, onLogout) }
             composable("notifications") {
                 LaunchedEffect(data.updates) {
                     val newestUpdate = data.updates.maxOfOrNull { it.createdAt.toEpochMillis() } ?: 0L
@@ -134,7 +167,7 @@ private fun MainShell(data: Dashboard, busy: Boolean, viewModel: AppViewModel, i
                     busy,
                     nav::popBackStack,
                     { go("notifications") },
-                    viewModel::refer
+                    onRefer
                 )
             }
             composable("certificate") {
@@ -153,13 +186,13 @@ private fun MainShell(data: Dashboard, busy: Boolean, viewModel: AppViewModel, i
                 AskDoubtScreen(
                     busy,
                     nav::popBackStack,
-                    { go("notifications") }) { q, d -> viewModel.askDoubt(q, d, nav::popBackStack) }
+                    { go("notifications") }) { q, d -> onAskDoubt(q, d, nav::popBackStack) }
             }
             composable("post-job") {
                 PostJobScreen(
                     busy,
                     nav::popBackStack,
-                    { go("notifications") }) { viewModel.postJob(it, nav::popBackStack) }
+                    { go("notifications") }) { onPostJob(it, nav::popBackStack) }
             }
             composable("course/{id}") { entry ->
                 data.courses.find {
@@ -176,10 +209,10 @@ private fun MainShell(data: Dashboard, busy: Boolean, viewModel: AppViewModel, i
                     busy,
                     nav::popBackStack,
                     { go("notifications") },
-                    { viewModel.answer(doubt.id, it) },
-                    viewModel::refreshDoubts,
-                    viewModel::startDoubtPolling,
-                    viewModel::stopDoubtPolling
+                    { onAnswer(doubt.id, it) },
+                    onRefreshDoubts,
+                    onStartDoubtPolling,
+                    onStopDoubtPolling
                 )
             }
             }
@@ -191,3 +224,37 @@ private fun MainShell(data: Dashboard, busy: Boolean, viewModel: AppViewModel, i
 private fun String?.toEpochMillis(): Long = runCatching {
     if (this.isNullOrBlank()) 0L else java.time.Instant.parse(this).toEpochMilli()
 }.getOrDefault(0L)
+
+private val sampleDashboard = Dashboard(
+    student = Student("SYF-AMP-DM26-B03-014", "Anusha Reddy", "Digital Marketing", "SR Nagar", "B03", "014", "Hyderabad"),
+    courses = listOf(
+        Course("dm-basics", "Digital Marketing Basics", "Intro to SEO, SEM and Social Media", 10, 4, false)
+    ),
+    jobs = emptyList(),
+    doubts = emptyList(),
+    seniors = emptyList(),
+    updates = listOf(
+        Update("COURSE", "New module available", "Analytics and client reporting has been added.", "2 hours ago", createdAt = "2024-05-20T10:30:00Z")
+    )
+)
+
+@Preview(showBackground = true)
+@Composable
+private fun MainShellPreview() {
+    VegamTheme {
+        MainShellContent(
+            data = sampleDashboard,
+            busy = false,
+            isAdmin = false,
+            onLogout = {},
+            onRefer = { _, _, _ -> },
+            onAskDoubt = { _, _, _ -> },
+            onPostJob = { _, _ -> },
+            onAnswer = { _, _ -> },
+            onRefreshDoubts = {},
+            onStartDoubtPolling = {},
+            onStopDoubtPolling = {},
+            adminDashboard = {}
+        )
+    }
+}

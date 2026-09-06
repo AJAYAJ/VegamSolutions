@@ -24,9 +24,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.widget.Toast
 import `in`.vegamdigital.app.domain.model.*
 import `in`.vegamdigital.app.presentation.components.*
 import `in`.vegamdigital.app.presentation.theme.*
+import `in`.vegamdigital.app.util.CertificatePdfGenerator
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun CourseDetailScreen(course: Course, back: () -> Unit, notifications: () -> Unit) {
@@ -86,9 +91,11 @@ fun CourseDetailScreen(course: Course, back: () -> Unit, notifications: () -> Un
                             tint = if (lesson.completed) Mint else BrandBlue,
                             modifier = Modifier.size(30.dp)
                         )
-                        Column(Modifier
-                            .padding(horizontal = 13.dp)
-                            .weight(1f)) {
+                        Column(
+                            Modifier
+                                .padding(horizontal = 13.dp)
+                                .weight(1f)
+                        ) {
                             Text(
                                 lesson.title,
                                 fontWeight = FontWeight.SemiBold
@@ -141,9 +148,11 @@ fun NotificationsScreen(updates: List<Update>, back: () -> Unit) {
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(Color.White)
                 ) {
-                    Row(Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp), verticalAlignment = Alignment.Top) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp), verticalAlignment = Alignment.Top
+                    ) {
                         Box(
                             Modifier
                                 .size(42.dp)
@@ -151,9 +160,11 @@ fun NotificationsScreen(updates: List<Update>, back: () -> Unit) {
                                 .background(BrandBlue.copy(.12f)),
                             contentAlignment = Alignment.Center
                         ) { Icon(Icons.Outlined.NotificationsNone, null, tint = BrandBlue) }
-                        Column(Modifier
-                            .padding(start = 13.dp)
-                            .weight(1f)) {
+                        Column(
+                            Modifier
+                                .padding(start = 13.dp)
+                                .weight(1f)
+                        ) {
                             Text(
                                 update.title,
                                 fontWeight = FontWeight.Bold
@@ -334,6 +345,8 @@ private fun ReferralStat(value: String, label: String, modifier: Modifier) {
 @Composable
 fun CertificateScreen(data: Dashboard, back: () -> Unit, notifications: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var creatingPdf by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
         PageHeader("Certificate", notifications, back)
         LazyColumn(
@@ -401,17 +414,33 @@ fun CertificateScreen(data: Dashboard, back: () -> Unit, notifications: () -> Un
                             )
                             }
                         }
-                        Spacer(Modifier.height(14.dp)); PrimaryButton(
-                        "↗  Details share cheyyandi",
-                        Modifier.fillMaxWidth()
-                    ) {
-                        val share = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"; putExtra(
-                            Intent.EXTRA_TEXT,
-                            "${data.student.name} completed Digital Marketing at Vegam Digital Academy. Certificate: ${data.student.code}"
-                        )
-                        }; context.startActivity(Intent.createChooser(share, "Share certificate"))
-                    }
+                        Spacer(Modifier.height(14.dp));
+                        PrimaryButton(
+                            if (creatingPdf) "Creating PDF..." else "↗  Certificate share cheyyandi",
+                            Modifier.fillMaxWidth(),
+                            !creatingPdf
+                        ) {
+                            creatingPdf = true
+                            scope.launch {
+                                runCatching {
+                                    withContext(Dispatchers.IO) {
+                                        CertificatePdfGenerator.create(context, data.student)
+                                    }
+                                }.onSuccess { pdfUri ->
+                                    val share = Intent(Intent.ACTION_SEND).apply {
+                                        type = "application/pdf"
+                                        putExtra(Intent.EXTRA_STREAM, pdfUri)
+                                        putExtra(Intent.EXTRA_SUBJECT, "${data.student.name} - Certificate")
+                                        clipData = android.content.ClipData.newRawUri("Certificate", pdfUri)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(Intent.createChooser(share, "Share certificate PDF"))
+                                }.onFailure {
+                                    Toast.makeText(context, "Certificate PDF create avvaledu", Toast.LENGTH_LONG).show()
+                                }
+                                creatingPdf = false
+                            }
+                        }
                         Text(
                             "Original printed certificate kosam institute lo adagandi.",
                             color = Muted,
